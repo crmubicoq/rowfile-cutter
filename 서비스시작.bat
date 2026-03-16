@@ -3,7 +3,7 @@ set "NODE_DIR=C:\Users\Administrator\Downloads\REC_Maker_CRM_low\nodejs"
 set "PATH=%NODE_DIR%;%PATH%"
 cd /d "%~dp0"
 
-set PORT=3000
+set PORT=3001
 set NEXT_TELEMETRY_DISABLED=1
 set NODE_ENV=production
 
