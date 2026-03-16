@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getGeminiModel } from "@/lib/gemini/client";
-import { buildAnalyzePrompt, buildMilestonePrompt } from "@/lib/gemini/prompt";
+import { buildAnalyzePrompt, buildMilestonePrompt, buildDirectUserPrompt } from "@/lib/gemini/prompt";
 import {
   AnalyzeRequestBody,
   AnalyzeResponse,
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { pdfBase64, mimeType, constraints, mode = "single" } = body;
+  const { pdfBase64, mimeType, constraints, mode = "single", userInstruction } = body;
 
   // ── 2. 필수 필드 검증 ──────────────────────────────────────────
   if (!pdfBase64 || !mimeType) {
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const prompt = buildMilestonePrompt(totalPages);
+      const prompt = buildMilestonePrompt(totalPages, userInstruction);
       const startTime = Date.now();
 
       const result = await model.generateContent([
@@ -209,11 +209,9 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const prompt = buildAnalyzePrompt(constraints ?? {}, {
-        startPage: rangeStart,
-        endPage: rangeEnd,
-        targetSessionCount,
-      });
+      const prompt = userInstruction
+        ? buildDirectUserPrompt(userInstruction, { startPage: rangeStart, endPage: rangeEnd, targetSessionCount })
+        : buildAnalyzePrompt(constraints ?? {}, { startPage: rangeStart, endPage: rangeEnd, targetSessionCount }, undefined);
 
       const startTime = Date.now();
       const result = await model.generateContent([
@@ -315,7 +313,9 @@ export async function POST(req: NextRequest) {
     // ══════════════════════════════════════════════════════════
     // ── SINGLE 모드: 전체 PDF 단일 분석 (기존 로직)
     // ══════════════════════════════════════════════════════════
-    const prompt = buildAnalyzePrompt(constraints ?? {});
+    const prompt = userInstruction
+      ? buildDirectUserPrompt(userInstruction)
+      : buildAnalyzePrompt(constraints ?? {}, undefined, undefined);
     const startTime = Date.now();
 
     const result = await model.generateContent([

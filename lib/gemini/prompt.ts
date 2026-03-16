@@ -1,5 +1,83 @@
 import { AnalyzeRequestBody } from "./types";
 
+/**
+ * 사용자 직접 지정 모드 전용 프롬프트.
+ * 교육공학 원칙 없이 사용자 지시사항만 최우선으로 따름.
+ */
+export function buildDirectUserPrompt(
+  userInstruction: string,
+  rangeContext?: { startPage: number; endPage: number; targetSessionCount?: number }
+): string {
+  const rangeBlock = rangeContext
+    ? `\n## 분석 범위\np.${rangeContext.startPage} ~ p.${rangeContext.endPage} 범위만 분석합니다.\n- 첫 번째 세션 startPage = ${rangeContext.startPage} (엄수)\n- 마지막 세션 endPage = ${rangeContext.endPage} (엄수)\n- 이 범위 밖의 페이지는 포함하지 마세요.\n`
+    : "";
+
+  const coverageStart = rangeContext ? rangeContext.startPage : 1;
+  const coverageEndDesc = rangeContext
+    ? `**${rangeContext.endPage}** (범위 끝 페이지)`
+    : "**PDF의 실제 마지막 페이지 번호**";
+
+  const ex1End = coverageStart + 9;
+  const ex2Start = coverageStart + 10;
+  const ex2End = coverageStart + 19;
+
+  return `🚨🚨🚨 [절대 규칙 — 페이지 번호 세는 방법] 🚨🚨🚨
+PDF 뷰어에서 이 파일을 열었을 때 맨 처음 보이는 페이지가 1번입니다.
+그 다음 페이지 = 2번, 그 다음 = 3번 ... 이렇게 **물리적 순서**로만 번호를 매기세요.
+문서 안에 인쇄된 숫자(아라비아 숫자, 로마자 등)는 **완전히 무시**하세요.
+
+예시: 표지(→1번), 목차(→2번), 빈 페이지(→3번), 본문첫장(→4번)
+이때 본문 첫 장에 "1"이 인쇄되어 있어도 startPage = **4** (인쇄 숫자 "1" ❌)
+
+이 규칙을 어기면 분할 위치가 완전히 틀립니다. 반드시 물리적 순서 번호를 사용하세요.
+🚨🚨🚨 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 🚨🚨🚨
+
+당신은 PDF 문서 분할 전문가입니다.
+첨부된 PDF를 사용자의 지시사항에 따라 정확하게 분할하세요.
+${rangeBlock}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ⭐ 사용자 지시사항 (반드시 따르세요)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"${userInstruction}"
+
+이 지시사항을 **그대로** 이행하세요.
+- 사용자가 "목차의 1,2,3,4로 나눠줘"라고 하면 → PDF의 목차를 찾아 해당 번호의 챕터 경계로 분할
+- 사용자가 "50페이지씩 나눠줘"라고 하면 → 50페이지 단위로 균등 분할
+- 사용자가 "챕터별로"라고 하면 → 목차/챕터 제목을 기준으로 분할
+- 사용자가 특정 페이지를 명시하면 → 그 페이지를 분할 기준으로 사용
+- 교육공학 원칙보다 사용자 지시사항이 **항상 우선**합니다.
+- ⚠️ 챕터 시작 페이지를 찾을 때: 목차에 인쇄된 번호가 아닌, 실제로 해당 챕터가 시작되는 물리적 순서 번호를 사용하세요.
+
+## 규칙
+- startPage와 endPage는 모두 포함(inclusive) 경계입니다.
+- 다음 세션의 startPage = 이전 세션의 endPage + 1
+- 첫 번째 세션의 startPage = **${coverageStart}**
+- 마지막 세션의 endPage = ${coverageEndDesc}
+- 어떤 페이지도 누락되거나 중복되면 안 됩니다.
+
+## 응답 형식 (순수 JSON만 출력, 마크다운 블록 금지)
+{
+  "sessions": [
+    {
+      "sessionNumber": 1,
+      "title": "세션 제목",
+      "summary": "이 세션의 내용 요약 1~2문장.",
+      "startPage": ${coverageStart},
+      "endPage": ${ex1End},
+      "reasoning": "사용자 지시에 따라 이 범위를 선택한 이유."
+    },
+    {
+      "sessionNumber": 2,
+      "title": "두 번째 세션 제목",
+      "summary": "요약.",
+      "startPage": ${ex2Start},
+      "endPage": ${ex2End},
+      "reasoning": "이유."
+    }
+  ]
+}`.trim();
+}
+
 // ── 범위 컨텍스트 타입 ──────────────────────────────────────────────
 interface RangeContext {
   startPage: number;
@@ -13,10 +91,16 @@ interface RangeContext {
  * 전체 PDF를 빠르게 훑어 "대주제가 바뀌는 페이지 번호" 목록만 추출.
  * 응답: {"milestones":[1,85,160]}
  */
-export function buildMilestonePrompt(totalPages: number): string {
-  return `당신은 교육 원고 구조 분석 전문가입니다.
-첨부된 PDF(총 ${totalPages}페이지)를 빠르게 훑어 **대주제(Chapter/Part 수준)가 바뀌는 페이지 번호** 목록을 추출하세요.
+export function buildMilestonePrompt(totalPages: number, userInstruction?: string): string {
+  const userHint = userInstruction
+    ? `\n## 사용자 분할 의도 (참고)\n사용자가 "${userInstruction}"라고 요청했습니다. 이 의도에 맞는 구조적 경계(챕터, 주제 전환점 등)를 이정표로 선택하세요.\n`
+    : "";
 
+  return `🚨 [절대 규칙] 페이지 번호는 물리적 순서(첫 페이지=1)로 세세요. 문서에 인쇄된 숫자는 무시하세요.
+
+당신은 교육 원고 구조 분석 전문가입니다.
+첨부된 PDF(총 ${totalPages}페이지)를 빠르게 훑어 **대주제(Chapter/Part 수준)가 바뀌는 페이지 번호** 목록을 추출하세요.
+${userHint}
 ## 규칙
 - 이정표(Milestone)란 완전히 새로운 대주제가 시작되는 페이지입니다. (소주제 전환은 포함하지 않음)
 - milestones[0]은 반드시 **1**이어야 합니다.
@@ -41,7 +125,8 @@ export function buildMilestonePrompt(totalPages: number): string {
  */
 export function buildAnalyzePrompt(
   constraints: AnalyzeRequestBody["constraints"],
-  rangeContext?: RangeContext
+  rangeContext?: RangeContext,
+  userInstruction?: string
 ): string {
   // ── 제약 조건 블록 생성 ─────────────────────────────────
   const sessionCountGuide = constraints.sessionCount
@@ -98,10 +183,37 @@ ${rangeContext.targetSessionCount ? `- 이 범위에서 약 **${rangeContext.tar
   const ex2Start = coverageStart + 10;
   const ex2End = coverageStart + 19;
 
+  // ── 사용자 직접 지시사항 블록 ───────────────────────────
+  const userInstructionBlock = userInstruction
+    ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+## ⭐ 최우선 지시사항 (사용자 직접 지정)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+사용자가 다음 방식으로 분할을 요청했습니다:
+
+"${userInstruction}"
+
+이 지시사항을 **최우선**으로 따르세요. 아래 교육공학 원칙(원칙 1~4)보다 이 지시사항이 우선합니다.
+지시에 맞는 분할점을 PDF에서 찾고, 각 회차의 제목·요약·reasoning을 적절히 작성하세요.
+`
+    : "";
+
   return `
+🚨🚨🚨 [절대 규칙 — 페이지 번호 세는 방법] 🚨🚨🚨
+PDF 뷰어에서 이 파일을 열었을 때 맨 처음 보이는 페이지가 1번입니다.
+그 다음 페이지 = 2번, 그 다음 = 3번 ... 이렇게 **물리적 순서**로만 번호를 매기세요.
+문서 안에 인쇄된 숫자(아라비아 숫자, 로마자 등)는 **완전히 무시**하세요.
+
+예시: 표지(→1번), 목차(→2번), 빈 페이지(→3번), 본문첫장(→4번)
+이때 본문 첫 장에 "1"이 인쇄되어 있어도 startPage = **4** (인쇄 숫자 "1" ❌)
+
+이 규칙을 어기면 분할 위치가 완전히 틀립니다. 반드시 물리적 순서 번호를 사용하세요.
+🚨🚨🚨 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 🚨🚨🚨
+
 당신은 10년 이상 경력의 교육 공학(Instructional Design) 및 교수 설계(Curriculum Design) 전문가입니다.
-첨부된 PDF 교육 원고를 정밀하게 분석하여, 아래 4가지 핵심 원칙에 따라 학습 회차를 분할합니다.
-${rangeBlock}
+첨부된 PDF 교육 원고를 정밀하게 분석하여, 아래 내용에 따라 학습 회차를 분할합니다.
+${userInstructionBlock}${rangeBlock}
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ## 핵심 원칙 1: One Message 원칙 (단일 핵심 메시지 완결)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

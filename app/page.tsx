@@ -77,6 +77,10 @@ export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
   const [constraints, setConstraints] = useState<Constraints>({});
+  const [analysisMode, setAnalysisMode] = useState<"ai" | "user">("ai");
+  const [userInstruction, setUserInstruction] = useState("");
+  /** 앞 페이지 오프셋: 표지·목차 등 번호 없는 페이지 수. Gemini 반환값에 더해짐. */
+  const [pageOffset, setPageOffset] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
@@ -193,6 +197,7 @@ export default function Home() {
     setLoadedFromHistory(false);
     setHistoryMeta(null);
     setConfirmDialog(null);
+    setPageOffset(0); // 새 파일마다 오프셋 초기화
 
     if (f.size > FILE_WARN_BYTES) {
       addToast(
@@ -255,15 +260,24 @@ export default function Home() {
     warnings?: { message: string }[],
     geminiSizeWarning?: string
   ) => {
-    setSessions(resultSessions);
+    // 페이지 오프셋 적용 (앞 표지·목차 등 번호 없는 페이지 수만큼 보정)
+    const shifted: Session[] =
+      pageOffset > 0
+        ? resultSessions.map((s) => ({
+            ...s,
+            startPage: s.startPage + pageOffset,
+            endPage: s.endPage + pageOffset,
+          }))
+        : resultSessions;
+    setSessions(shifted);
 
-    const first = resultSessions[0];
-    const last = resultSessions[resultSessions.length - 1];
+    const first = shifted[0];
+    const last = shifted[shifted.length - 1];
     addToast(
       "success",
-      `${resultSessions.length}개 회차 분석 완료 (총 ${
+      `${shifted.length}개 회차 분석 완료 (총 ${
         last.endPage - first.startPage + 1
-      }p)`
+      }p)${pageOffset > 0 ? ` · 오프셋 +${pageOffset}p 적용` : ""}`
     );
 
     // localStorage에 이력 저장 (PDF Base64 제외)
@@ -271,14 +285,14 @@ export default function Home() {
       const entry = appendHistory({
         filename: file.name,
         fileSizeBytes: file.size,
-        sessionCount: resultSessions.length,
+        sessionCount: shifted.length,
         analyzedAt: new Date().toISOString(),
-        sessions: resultSessions,
+        sessions: shifted,
       });
       setHistory((prev) => [entry, ...prev].slice(0, 10));
     }
 
-    if (warnings && warnings.length > 0) {
+    if (warnings && warnings.length > 0 && pageOffset === 0) {
       addToast(
         "warning",
         `검증 경고 ${warnings.length}건 — 페이지 범위를 확인해 주세요.`
@@ -313,7 +327,8 @@ export default function Home() {
       const docTotalPages: number = countData.totalPages;
 
       // ── 분기: 단일 vs 멀티 스테이지 ──────────────────────
-      if (docTotalPages <= MULTI_STAGE_THRESHOLD) {
+      // 직접 지정 모드는 전체 PDF를 한 번에 봐야 챕터를 찾을 수 있으므로 항상 단일 분석
+      if (docTotalPages <= MULTI_STAGE_THRESHOLD || analysisMode === "user") {
         // ── 단일 분석 (80p 이하) ─────────────────────────
         setAnalyzeStage("single");
         const body: AnalyzeRequestBody = {
@@ -321,6 +336,7 @@ export default function Home() {
           mimeType: "application/pdf",
           mode: "single",
           constraints,
+          ...(analysisMode === "user" && userInstruction ? { userInstruction } : {}),
         };
         const res = await fetch("/api/analyze", {
           method: "POST",
@@ -756,7 +772,7 @@ export default function Home() {
             )}
           </motion.section>
 
-          {/* ── Step 2: 제약 조건 (실제 PDF가 있을 때만) ──── */}
+          {/* ── Step 2: 분석 모드 + 제약 조건 (실제 PDF가 있을 때만) ── */}
           <AnimatePresence>
             {file && (
               <motion.section
@@ -765,12 +781,104 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.25 }}
-                className="mb-6"
+                className="mb-6 space-y-4"
               >
-                <ConstraintsForm
-                  constraints={constraints}
-                  onChange={setConstraints}
-                />
+                {/* 분석 모드 토글 */}
+                <div className="p-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 backdrop-blur-sm">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                    분석 모드
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setAnalysisMode("ai")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border ${
+                        analysisMode === "ai"
+                          ? "bg-indigo-500/20 border-indigo-500/50 text-indigo-300"
+                          : "bg-slate-900/40 border-slate-700/50 text-slate-400 hover:text-slate-300 hover:border-slate-600"
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      AI 자동 분석
+                    </button>
+                    <button
+                      onClick={() => setAnalysisMode("user")}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border ${
+                        analysisMode === "user"
+                          ? "bg-violet-500/20 border-violet-500/50 text-violet-300"
+                          : "bg-slate-900/40 border-slate-700/50 text-slate-400 hover:text-slate-300 hover:border-slate-600"
+                      }`}
+                    >
+                      <Scissors className="w-3.5 h-3.5" />
+                      직접 지정
+                    </button>
+                  </div>
+
+                  {/* 직접 지정 모드: 지시사항 입력 */}
+                  <AnimatePresence>
+                    {analysisMode === "user" && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-4 flex flex-col gap-1.5">
+                          <label className="text-xs font-medium text-slate-400">
+                            분할 방법을 입력하세요{" "}
+                            <span className="text-violet-400">*</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            placeholder={"예: 목차의 1, 2, 3, 4 차례로 나눠줘\n예: 50페이지씩 균등하게 나눠줘\n예: 챕터별로 나눠줘"}
+                            value={userInstruction}
+                            onChange={(e) => setUserInstruction(e.target.value)}
+                            className="px-3 py-2.5 rounded-xl bg-slate-900/60 border border-violet-700/40 text-slate-100 placeholder-slate-600 text-sm focus:outline-none focus:border-violet-500/60 focus:ring-1 focus:ring-violet-500/30 transition-colors resize-none"
+                          />
+                          <p className="text-xs text-slate-600">
+                            AI가 이 지시사항을 최우선으로 따라 분할점을 찾습니다.
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* 제약 조건 — AI 모드에서만 표시 (직접 지정 모드는 사용자 입력이 대체) */}
+                {analysisMode === "ai" && (
+                  <ConstraintsForm
+                    constraints={constraints}
+                    onChange={setConstraints}
+                  />
+                )}
+
+                {/* 페이지 오프셋 */}
+                <div className="p-4 rounded-2xl border border-slate-700/50 bg-slate-800/40 backdrop-blur-sm">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                    앞 페이지 오프셋
+                  </p>
+                  <p className="text-xs text-slate-600 mb-3">
+                    표지·목차 등 번호 없는 앞 페이지 수. AI가 반환한 페이지에 이 값을 더해 실제 PDF 위치로 보정합니다.
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min={0}
+                      max={200}
+                      value={pageOffset}
+                      onChange={(e) =>
+                        setPageOffset(Math.max(0, parseInt(e.target.value) || 0))
+                      }
+                      className="w-24 px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-700/50 text-slate-100 text-sm text-center focus:outline-none focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                    />
+                    <span className="text-sm text-slate-400">페이지</span>
+                    {pageOffset > 0 && (
+                      <span className="text-xs px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                        AI 결과 +{pageOffset}p 보정
+                      </span>
+                    )}
+                  </div>
+                </div>
               </motion.section>
             )}
           </AnimatePresence>
@@ -787,7 +895,7 @@ export default function Home() {
               >
                 <button
                   onClick={handleAnalyze}
-                  disabled={isAnalyzing || splitStatus === "splitting"}
+                  disabled={isAnalyzing || splitStatus === "splitting" || (analysisMode === "user" && !userInstruction.trim())}
                   className="group flex items-center gap-2.5 px-8 py-3.5 bg-gradient-to-r from-indigo-500 to-violet-500 rounded-full font-semibold text-sm text-white shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
                 >
                   {isAnalyzing ? (
@@ -807,8 +915,15 @@ export default function Home() {
                     </>
                   ) : (
                     <>
-                      <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                      {hasResults ? "재분석" : "AI 분석 시작"}
+                      {analysisMode === "user"
+                        ? <Scissors className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                        : <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                      }
+                      {hasResults
+                        ? "재분석"
+                        : analysisMode === "user"
+                        ? "직접 지정으로 분석"
+                        : "AI 분석 시작"}
                     </>
                   )}
                 </button>

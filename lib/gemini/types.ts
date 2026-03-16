@@ -59,4 +59,10 @@ export interface AnalyzeRequestBody {
     /** 추가 자유 형식 지시사항 */
     additionalInstructions?: string;
   };
+  /**
+   * 사용자 직접 지정 모드의 분할 지시사항.
+   * 존재할 경우 AI의 교육공학 원칙보다 이 지시사항이 최우선됩니다.
+   * 예: "목차의 1, 2, 3, 4 차례로 나눠줘"
+   */
+  userInstruction?: string;
 }
