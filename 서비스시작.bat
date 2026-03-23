@@ -1,4 +1,11 @@
 @echo off
+
+:: 창이 닫히지 않도록 새 CMD 창에서 실행
+if "%~1"=="RUN" goto :run
+cmd /k "%~f0" RUN
+exit /b 0
+
+:run
 cd /d "%~dp0"
 
 set PORT=3001
@@ -43,7 +50,7 @@ if not exist "node_modules" (
 :: STEP 3: Check production build
 if not exist ".next" (
     echo  [ERROR] Build output not found.
-    echo  Please run [Build.bat] first.
+    echo  Please run [빌드.bat] first.
     echo.
     pause
     exit /b 1
