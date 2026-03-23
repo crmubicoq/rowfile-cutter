@@ -1,11 +1,4 @@
 @echo off
-
-:: 창이 닫히지 않도록 새 CMD 창에서 실행
-if "%~1"=="RUN" goto :run
-cmd /k "%~f0" RUN
-exit /b 0
-
-:run
 cd /d "%~dp0"
 
 set PORT=3001
@@ -24,7 +17,7 @@ where node >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     echo  [ERROR] Node.js not found.
     echo  Install Node.js LTS from https://nodejs.org
-    echo  Then restart this file.
+    echo  Then run this file again.
     echo.
     pause
     exit /b 1
@@ -49,23 +42,21 @@ if not exist "node_modules" (
 
 :: STEP 3: Check production build
 if not exist ".next" (
-    echo  [ERROR] Build output not found.
-    echo  Please run [빌드.bat] first.
+    echo  [ERROR] Build not found. Run [build.bat] first.
     echo.
     pause
     exit /b 1
 )
 echo  [OK] Build ready.
 
-:: STEP 3-1: Check .env.local (API Key)
+:: STEP 3-1: Check .env.local
 if not exist ".env.local" (
-    echo  [ERROR] .env.local 파일이 없습니다.
-    echo  프로젝트 루트에 .env.local 파일을 생성하고
-    echo  아래 내용을 입력하세요:
+    echo  [ERROR] .env.local file is missing!
     echo.
+    echo  Create a file named [.env.local] in this folder with:
     echo    GEMINI_API_KEY=your_api_key_here
     echo.
-    echo  API 키 발급: https://aistudio.google.com/app/apikey
+    echo  Get API key: https://aistudio.google.com/app/apikey
     echo.
     pause
     exit /b 1
@@ -74,7 +65,7 @@ echo  [OK] .env.local found.
 
 :: STEP 4: Launch
 echo.
-echo  [>>] Server starting at http://localhost:%PORT%
+echo  [>>] Starting server at http://localhost:%PORT%
 echo  [--] Press Ctrl+C to stop.
 echo.
 
