@@ -116,8 +116,18 @@ export async function POST(req: NextRequest) {
       ? `PDF 크기(~${estimatedMB}MB)가 Gemini inline 권장 한도(20MB)를 초과합니다. 분석이 느리거나 실패할 수 있습니다.`
       : null;
 
+  // ── API 키: 헤더 우선, 없으면 환경변수 사용 ───────────────────────
+  const apiKey =
+    req.headers.get("x-gemini-api-key") || process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "Gemini API 키가 없습니다. 설정에서 API 키를 입력해주세요." },
+      { status: 401 }
+    );
+  }
+
   try {
-    const model = getGeminiModel();
+    const model = getGeminiModel(apiKey);
 
     // ══════════════════════════════════════════════════════════
     // ── MILESTONE 모드: 대주제 이정표 감지 (멀티 스테이지 1단계)

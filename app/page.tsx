@@ -14,6 +14,7 @@ import {
   RotateCcw,
   Archive,
   X,
+  KeyRound,
 } from "lucide-react";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ConstraintsForm } from "@/components/ConstraintsForm";
@@ -116,10 +117,27 @@ export default function Home() {
     onConfirm: () => void;
   } | null>(null);
 
+  // ── API 키 설정 ─────────────────────────────────────────
+  const [apiKey, setApiKey] = useState("");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
   // ── localStorage 이력 초기 로드 ──────────────────────────
   useEffect(() => {
     setHistory(loadHistory());
+    const saved = localStorage.getItem("edusplit_gemini_key") ?? "";
+    setApiKey(saved);
+    setApiKeyInput(saved);
+    if (!saved) setShowApiKeyModal(true);
   }, []);
+
+  const handleSaveApiKey = () => {
+    const trimmed = apiKeyInput.trim();
+    localStorage.setItem("edusplit_gemini_key", trimmed);
+    setApiKey(trimmed);
+    setShowApiKeyModal(false);
+    if (trimmed) addToast("success", "API 키가 저장되었습니다.");
+  };
 
   // ── 파생 상태 ───────────────────────────────────────────
   const hasActivePdf = !!pdfBase64;
@@ -340,7 +358,7 @@ export default function Home() {
         };
         const res = await fetch("/api/analyze", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
           body: JSON.stringify(body),
         });
         const data = await res.json();
@@ -360,7 +378,7 @@ export default function Home() {
         setAnalyzeStage("milestone");
         const msRes = await fetch("/api/analyze", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
           body: JSON.stringify({
             pdfBase64,
             mimeType: "application/pdf",
@@ -404,7 +422,7 @@ export default function Home() {
 
           const rangeRes = await fetch("/api/analyze", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "x-gemini-api-key": apiKey },
             body: JSON.stringify({
               pdfBase64,
               mimeType: "application/pdf",
@@ -625,6 +643,68 @@ export default function Home() {
   // ──────────────────────────────────────────────────────
   return (
     <>
+      {/* ── API 키 모달 ──────────────────────────────────── */}
+      <AnimatePresence>
+        {showApiKeyModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={(e) => { if (e.target === e.currentTarget && apiKey) setShowApiKeyModal(false); }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              className="w-full max-w-md bg-slate-900 border border-slate-700/60 rounded-2xl p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-indigo-400" />
+                  <h2 className="text-slate-100 font-semibold text-base">Gemini API 키 설정</h2>
+                </div>
+                {apiKey && (
+                  <button onClick={() => setShowApiKeyModal(false)} className="text-slate-500 hover:text-slate-300 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <p className="text-slate-400 text-xs mb-4">
+                Google AI Studio에서 발급받은 API 키를 입력하세요.<br />
+                키는 이 기기의 브라우저에만 저장되며 외부로 전송되지 않습니다.
+              </p>
+              <input
+                type="password"
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveApiKey()}
+                placeholder="AIza..."
+                className="w-full px-3 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:border-indigo-500 mb-4"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveApiKey}
+                  disabled={!apiKeyInput.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  저장
+                </button>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium transition-colors border border-slate-700"
+                >
+                  키 발급
+                </a>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── 토스트 (우상단 고정) ─────────────────────────── */}
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
 
@@ -677,16 +757,32 @@ export default function Home() {
                 )}
               </button>
 
-              {/* 워크스페이스 초기화 */}
-              <button
-                onClick={handleReset}
-                disabled={!hasWork}
-                title="워크스페이스 초기화"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-rose-400 hover:border-rose-500/30 text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>초기화</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* API 키 설정 */}
+                <button
+                  onClick={() => { setApiKeyInput(apiKey); setShowApiKeyModal(true); }}
+                  title="Gemini API 키 설정"
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                    apiKey
+                      ? "bg-slate-800/60 border-slate-700/40 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/30"
+                      : "bg-amber-500/10 border-amber-500/40 text-amber-400 hover:bg-amber-500/20"
+                  }`}
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>{apiKey ? "API 키" : "API 키 필요"}</span>
+                </button>
+
+                {/* 워크스페이스 초기화 */}
+                <button
+                  onClick={handleReset}
+                  disabled={!hasWork}
+                  title="워크스페이스 초기화"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/60 border border-slate-700/40 text-slate-400 hover:text-rose-400 hover:border-rose-500/30 text-xs font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>초기화</span>
+                </button>
+              </div>
             </div>
 
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-medium mb-3">

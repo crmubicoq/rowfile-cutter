@@ -49,20 +49,6 @@ if not exist ".next" (
 )
 echo  [OK] Build ready.
 
-:: STEP 3-1: Check .env.local
-if not exist ".env.local" (
-    echo  [ERROR] .env.local file is missing!
-    echo.
-    echo  Create a file named [.env.local] in this folder with:
-    echo    GEMINI_API_KEY=your_api_key_here
-    echo.
-    echo  Get API key: https://aistudio.google.com/app/apikey
-    echo.
-    pause
-    exit /b 1
-)
-echo  [OK] .env.local found.
-
 :: STEP 4: Launch
 echo.
 echo  [>>] Starting server at http://localhost:%PORT%
