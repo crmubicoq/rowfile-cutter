@@ -1,6 +1,4 @@
 @echo off
-set "NODE_DIR=C:\Users\Administrator\Downloads\REC_Maker_CRM_low\nodejs"
-set "PATH=%NODE_DIR%;%PATH%"
 cd /d "%~dp0"
 
 set PORT=3001
@@ -51,6 +49,21 @@ if not exist ".next" (
     exit /b 1
 )
 echo  [OK] Build ready.
+
+:: STEP 3-1: Check .env.local (API Key)
+if not exist ".env.local" (
+    echo  [ERROR] .env.local 파일이 없습니다.
+    echo  프로젝트 루트에 .env.local 파일을 생성하고
+    echo  아래 내용을 입력하세요:
+    echo.
+    echo    GEMINI_API_KEY=your_api_key_here
+    echo.
+    echo  API 키 발급: https://aistudio.google.com/app/apikey
+    echo.
+    pause
+    exit /b 1
+)
+echo  [OK] .env.local found.
 
 :: STEP 4: Launch
 echo.

@@ -22,7 +22,7 @@
 
 ### 요구 사항
 
-- [Node.js LTS](https://nodejs.org) (v18 이상)
+- [Node.js LTS](https://nodejs.org) (v18 이상) — 공식 사이트에서 설치 후 시스템 PATH에 등록
 - Gemini API Key ([발급](https://aistudio.google.com/app/apikey))
 
 ### 설치 및 실행
@@ -32,7 +32,7 @@
 git clone https://github.com/crmubicoq/rowfile-cutter.git
 cd rowfile-cutter
 
-# 2. 환경 변수 설정
+# 2. 환경 변수 설정 (필수 — 없으면 서버 시작 시 오류 발생)
 echo GEMINI_API_KEY=your_api_key_here > .env.local
 
 # 3. 의존성 설치 및 빌드
@@ -41,15 +41,21 @@ npm run build
 
 # 4. 서버 시작
 npm start
-# → http://localhost:3000
+# → http://localhost:3001
 ```
 
 ### Windows 원클릭 실행 (배치 파일)
 
 | 파일 | 용도 |
 |---|---|
-| `빌드.bat` | 프로덕션 빌드 (코드 변경 시 실행) |
+| `빌드.bat` | 최초 1회 또는 코드 변경 시 실행 |
 | `서비스시작.bat` | 서버 기동 + 브라우저 자동 오픈 |
+
+> **팀원 최초 설정 순서**
+> 1. Node.js LTS 설치 ([nodejs.org](https://nodejs.org))
+> 2. 프로젝트 루트에 `.env.local` 파일 생성 후 `GEMINI_API_KEY=발급받은키` 입력
+> 3. `빌드.bat` 실행 (최초 1회)
+> 4. `서비스시작.bat` 실행
 
 ---
 
