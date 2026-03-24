@@ -1,4 +1,8 @@
 @echo off
+if "%~1"=="RUN" goto :run
+start "EduSplit AI - Server" cmd /k "%~f0" RUN
+exit /b 0
+:run
 cd /d "%~dp0"
 
 set PORT=3001

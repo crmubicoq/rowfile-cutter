@@ -1,4 +1,8 @@
 @echo off
+if "%~1"=="RUN" goto :run
+start "EduSplit AI - Build" cmd /k "%~f0" RUN
+exit /b 0
+:run
 cd /d "%~dp0"
 
 set NEXT_TELEMETRY_DISABLED=1
