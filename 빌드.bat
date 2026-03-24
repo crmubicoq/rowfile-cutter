@@ -29,7 +29,7 @@ echo  [OK] Node.js %NODE_VER%
 if not exist "node_modules" (
     echo  [..] Installing dependencies...
     echo.
-    npm install
+    call npm install
     if %ERRORLEVEL% NEQ 0 (
         echo  [ERROR] npm install failed.
         echo.
@@ -43,7 +43,7 @@ if not exist "node_modules" (
 :: STEP 3: Build
 echo  [..] Building for production...
 echo.
-npm run build
+call npm run build
 
 echo.
 if %ERRORLEVEL% EQU 0 (

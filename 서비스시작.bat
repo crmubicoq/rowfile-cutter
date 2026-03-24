@@ -33,7 +33,7 @@ echo  [OK] Node.js %NODE_VER%
 if not exist "node_modules" (
     echo  [..] Installing dependencies...
     echo.
-    npm install --production
+    call npm install --production
     if %ERRORLEVEL% NEQ 0 (
         echo  [ERROR] npm install failed.
         echo.
@@ -61,7 +61,7 @@ echo.
 
 start /b cmd /c "timeout /t 4 /nobreak > nul && start http://localhost:%PORT%"
 
-npm start
+call npm start
 
 echo.
 echo  [INFO] Server stopped.
