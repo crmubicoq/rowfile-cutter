@@ -32,16 +32,14 @@
 git clone https://github.com/crmubicoq/rowfile-cutter.git
 cd rowfile-cutter
 
-# 2. 환경 변수 설정 (필수 — 없으면 서버 시작 시 오류 발생)
-echo GEMINI_API_KEY=your_api_key_here > .env.local
-
-# 3. 의존성 설치 및 빌드
+# 2. 의존성 설치 및 빌드
 npm install
 npm run build
 
-# 4. 서버 시작
+# 3. 서버 시작
 npm start
 # → http://localhost:3001
+# → 브라우저에서 Gemini API 키 입력 팝업이 자동으로 뜸
 ```
 
 ### Windows 원클릭 실행 (배치 파일)
@@ -53,9 +51,9 @@ npm start
 
 > **팀원 최초 설정 순서**
 > 1. Node.js LTS 설치 ([nodejs.org](https://nodejs.org))
-> 2. 프로젝트 루트에 `.env.local` 파일 생성 후 `GEMINI_API_KEY=발급받은키` 입력
-> 3. `빌드.bat` 실행 (최초 1회)
-> 4. `서비스시작.bat` 실행
+> 2. `빌드.bat` 실행 (최초 1회)
+> 3. `서비스시작.bat` 실행
+> 4. 브라우저에서 Gemini API 키 입력 팝업 → 키 입력 후 저장
 
 ---
 
@@ -73,15 +71,12 @@ npm start
 
 ---
 
-## 환경 변수
+## API 키
 
-`.env.local` 파일을 프로젝트 루트에 생성하세요.
+앱 실행 후 브라우저에서 **API 키 입력 팝업**이 자동으로 표시됩니다.
+[Google AI Studio](https://aistudio.google.com/app/apikey)에서 발급받은 키를 입력하면 브라우저에 저장됩니다.
 
-```
-GEMINI_API_KEY=your_gemini_api_key
-```
-
-> API 키는 절대 커밋하지 마세요. `.gitignore`에 의해 자동 제외됩니다.
+> 키는 이 기기의 브라우저 로컬 스토리지에만 저장되며 외부로 전송되지 않습니다.
 
 ---
 
